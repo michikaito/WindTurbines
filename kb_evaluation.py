@@ -1,28 +1,46 @@
-import os
+# ==============================================================================
+# kb_evaluation.py - Valutazione quantitativa delle prestazioni del Motore Logico
+# ==============================================================================
+"""
+kb_evaluation.py - Valuta l'accuratezza diagnostica del sistema a regole
+confrontando lo stato inferito rispetto allo stato di salute reale (RUL ground truth).
+"""
+
 import pandas as pd
+import numpy as np
+from sklearn.metrics import classification_report, confusion_matrix
+import config
+import data_loader
+import logic_engine
 
-os.makedirs("results", exist_ok=True)
+def evaluate_knowledge_base():
+    print("--- Valutazione Prestazioni Motore Logico (KB) ---")
+    df = data_loader.load_dataset()
+    
+    engine = logic_engine.LogicEngine()
+    df_kb = engine.evaluate_dataframe(df)
+    
+    # Unione con ground truth
+    df_eval = df.merge(df_kb, on=[config.ID_COL, config.TIME_COL])
+    
+    y_true = df_eval["health_state"]
+    y_pred = df_eval["kb_predicted_state"]
+    
+    target_names = ["HEALTHY", "WARNING", "CRITICAL"]
+    report = classification_report(y_true, y_pred, target_names=target_names, output_dict=True)
+    report_df = pd.DataFrame(report).transpose()
+    
+    print("\nReport di Classificazione Diagnostica:")
+    print(classification_report(y_true, y_pred, target_names=target_names))
+    
+    cm = confusion_matrix(y_true, y_pred)
+    print("Matrice di Confusione:")
+    print(cm)
+    
+    out_path = config.RESULTS_DIR / "kb_evaluation_wind_turbines.csv"
+    report_df.to_csv(out_path)
+    print(f"\n[OK] Risultati salvati in: {out_path}")
+    return report_df
 
-summary_df = pd.DataFrame([
-    {
-        "configuration": "KB base",
-        "precision_mean": 0.78,
-        "precision_std": 0.04,
-        "recall_mean": 0.72,
-        "recall_std": 0.05,
-        "f1_mean": 0.75,
-        "f1_std": 0.04
-    },
-    {
-        "configuration": "KB con trend",
-        "precision_mean": 0.82,
-        "precision_std": 0.03,
-        "recall_mean": 0.79,
-        "recall_std": 0.04,
-        "f1_mean": 0.80,
-        "f1_std": 0.03
-    },
-])
-
-summary_df.to_csv("results/kb_evaluation_FD001.csv", index=False)
-print("Salvato results/kb_evaluation_FD001.csv")
+if __name__ == "__main__":
+    evaluate_knowledge_base()
